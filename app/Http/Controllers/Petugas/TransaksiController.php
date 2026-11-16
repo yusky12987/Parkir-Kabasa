@@ -23,14 +23,12 @@ class TransaksiController extends Controller {
         return view('petugas.transaksi.masuk', compact('tarif', 'area', 'kendaraan'));
     }
 
-    // Process Simpan Kendaraan Masuk
+// Process Simpan Kendaraan Masuk
     public function storeMasuk(Request $request) {
         $request->validate([
             'no_plat'  => 'required|string|max:15',
             'id_tarif' => 'required|exists:tb_tarif,id_tarif',
             'id_area'  => 'required|exists:tb_area_parkir,id_area',
-            'warna'    => 'nullable|string|max:30',
-            'pemilik'  => 'nullable|string|max:100',
         ]);
 
         $area = AreaParkir::findOrFail($request->id_area);
@@ -39,19 +37,6 @@ class TransaksiController extends Controller {
         }
 
         $noPlat = strtoupper(trim($request->no_plat));
-        $tarifDipilih = Tarif::findOrFail($request->id_tarif);
-
-        // Cek apakah plat sudah terdaftar di tb_kendaraan (dari Admin).
-        // Jika belum ada, otomatis simpan ke tb_kendaraan sebagai data baru.
-        Kendaraan::firstOrCreate(
-            ['no_plat' => $noPlat],
-            [
-                'jenis_kendaraan' => $tarifDipilih->jenis_kendaraan,
-                'warna'           => $request->filled('warna') ? trim($request->warna) : '-',
-                'pemilik'         => $request->filled('pemilik') ? trim($request->pemilik) : 'Umum',
-                'id_user'         => Auth::user()->id_user,
-            ]
-        );
 
         $transaksi = Transaksi::create([
             'no_plat'     => $noPlat,
@@ -62,16 +47,12 @@ class TransaksiController extends Controller {
             'status'      => 'Masuk'
         ]);
 
-        // Tambah jumlah terisi di area parkir
-        $area->increment('terisi');
-
         // Catat Log
         LogAktivitas::catat(Auth::user()->id_user, "Kendaraan Masuk: " . $transaksi->no_plat);
 
         return redirect()->route('petugas.transaksi.cetak', $transaksi->id_parkir)
                          ->with('success', 'Transaksi masuk berhasil dicatat.');
     }
-
     // 2. Tampilan Transaksi Keluar & Bayar
     public function keluar(Request $request) {
         $transaksi = null;
@@ -123,8 +104,8 @@ class TransaksiController extends Controller {
             'status'       => 'Keluar'
         ]);
 
-        // Kurangi jumlah terisi
-        AreaParkir::where('id_area', $transaksi->id_area)->decrement('terisi');
+        // // Kurangi jumlah terisi (ini sudah di trigger)
+        // AreaParkir::where('id_area', $transaksi->id_area)->decrement('terisi');
 
         // Catat Log
         LogAktivitas::catat(Auth::user()->id_user, "Kendaraan Keluar: " . $transaksi->no_plat);
