@@ -42,14 +42,23 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/log', [LogController::class, 'index'])->name('log.index');
     });
 
-    // === ROLE PETUGAS ===
+// === ROLE PETUGAS ===
     Route::middleware(['role:petugas'])->prefix('petugas')->name('petugas.')->group(function () {
         Route::get('/dashboard', [PetugasDashboard::class, 'index'])->name('dashboard');
         Route::get('/transaksi/masuk', [TransaksiController::class, 'masuk'])->name('transaksi.masuk');
         Route::post('/transaksi/masuk', [TransaksiController::class, 'storeMasuk'])->name('transaksi.masuk.store');
+
+        // Daftar kendaraan yang sedang parkir (halaman yang sudah ada)
         Route::get('/transaksi/keluar', [TransaksiController::class, 'keluar'])->name('transaksi.keluar');
+        // Halaman kasir hitung tarif & kembalian (BARU)
+        Route::get('/transaksi/keluar/{id}', [TransaksiController::class, 'formKeluar'])->name('transaksi.keluar.form');
+        // Proses simpan pembayaran keluar
         Route::post('/transaksi/keluar/{id}', [TransaksiController::class, 'storeKeluar'])->name('transaksi.keluar.store');
+
+        // Cetak tiket masuk (yang sudah ada)
         Route::get('/transaksi/cetak/{id}', [TransaksiController::class, 'cetak'])->name('transaksi.cetak');
+        // Cetak struk pembayaran keluar (BARU)
+        Route::get('/transaksi/struk-keluar/{id}', [TransaksiController::class, 'cetakKeluar'])->name('transaksi.cetak.keluar');
     });
 
     // === ROLE OWNER ===

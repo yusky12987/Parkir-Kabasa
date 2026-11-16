@@ -9,9 +9,9 @@ class Transaksi extends Model {
     protected $primaryKey = 'id_parkir';
     protected $fillable = [
         'no_plat', 'waktu_masuk', 'waktu_keluar', 'id_tarif',
-        'durasi_jam', 'biaya_total', 'status', 'id_user', 'id_area'
+        'durasi_jam', 'biaya_total', 'metode_pembayaran',
+        'uang_bayar', 'kembalian', 'status', 'id_user', 'id_area'
     ];
-
     public function tarif() {
         return $this->belongsTo(Tarif::class, 'id_tarif');
     }
