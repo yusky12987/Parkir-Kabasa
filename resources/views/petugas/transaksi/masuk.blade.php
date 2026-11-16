@@ -2,8 +2,9 @@
 
 @section('content')
 <div class="max-w-xl mx-auto bg-white border border-slate-300 rounded shadow-sm">
-    <div class="bg-slate-200 px-4 py-3 border-b border-slate-300 font-bold text-slate-700">
-        Input Kendaraan Masuk
+    <div class="bg-slate-200 px-4 py-3 border-b border-slate-300 font-bold text-slate-700 flex justify-between items-center">
+        <span>Input Kendaraan Masuk</span>
+        <span id="status-badge" class="hidden text-xs font-semibold px-2.5 py-0.5 rounded"></span>
     </div>
 
     @if($errors->any())
@@ -15,17 +16,54 @@
     <form action="{{ route('petugas.transaksi.masuk.store') }}" method="POST" class="p-4 space-y-4">
         @csrf
         <div>
-            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nomor Plat Kendaraan</label>
-            <input type="text" name="no_plat" placeholder="Contoh: B 1234 ABC" required autofocus
+            <div class="flex justify-between items-center mb-1">
+                <label class="block text-xs font-semibold text-slate-600 uppercase">Nomor Plat Kendaraan</label>
+                <span class="text-[11px] text-slate-500">Pilih dari daftar atau ketik plat baru</span>
+            </div>
+            <input type="text" id="no_plat" name="no_plat" list="daftar-kendaraan"
+                placeholder="Contoh: Q 1212 N atau B 1234 ABC" required autofocus autocomplete="off"
                 class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-600 uppercase">
+
+            <datalist id="daftar-kendaraan">
+                @foreach($kendaraan as $k)
+                    <option value="{{ $k->no_plat }}">
+                        {{ $k->jenis_kendaraan }} - {{ $k->pemilik }} ({{ $k->warna }})
+                    </option>
+                @endforeach
+            </datalist>
+        </div>
+
+        <!-- Info otomatis jika plat sudah terdaftar di Admin -->
+        <div id="info-terdaftar" class="hidden bg-emerald-50 border border-emerald-200 rounded p-3 text-xs text-emerald-800">
+            <div class="font-semibold mb-1">Data Kendaraan Terdaftar (Master Admin):</div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>Pemilik: <strong id="info-pemilik">-</strong></div>
+                <div>Warna: <strong id="info-warna">-</strong></div>
+            </div>
+        </div>
+
+        <!-- Input tambahan opsional jika plat baru (pengunjung umum) -->
+        <div id="input-plat-baru" class="hidden grid grid-cols-2 gap-3 bg-slate-50 border border-slate-200 rounded p-3">
+            <div>
+                <label class="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Warna (Opsional)</label>
+                <input type="text" name="warna" id="warna" placeholder="Contoh: Hitam"
+                    class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-slate-600">
+            </div>
+            <div>
+                <label class="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Pemilik (Opsional)</label>
+                <input type="text" name="pemilik" id="pemilik" placeholder="Default: Umum"
+                    class="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-slate-600">
+            </div>
         </div>
 
         <div>
             <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Jenis Kendaraan / Tarif</label>
-            <select name="id_tarif" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-600">
+            <select name="id_tarif" id="id_tarif" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-600">
                 <option value="">-- Pilih Jenis --</option>
                 @foreach($tarif as $t)
-                    <option value="{{ $t->id_tarif }}">{{ $t->jenis_kendaraan }} - Rp {{ number_format($t->tarif_per_jam, 0, ',', '.') }}/jam</option>
+                    <option value="{{ $t->id_tarif }}" data-jenis="{{ strtolower(trim($t->jenis_kendaraan)) }}">
+                        {{ $t->jenis_kendaraan }} - Rp {{ number_format($t->tarif_per_jam, 0, ',', '.') }}/jam
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -45,4 +83,63 @@
         </button>
     </form>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Data master kendaraan dari controller
+        const dataKendaraan = @json($kendaraan);
+
+        const inputPlat = document.getElementById('no_plat');
+        const selectTarif = document.getElementById('id_tarif');
+        const statusBadge = document.getElementById('status-badge');
+        const infoTerdaftar = document.getElementById('info-terdaftar');
+        const infoPemilik = document.getElementById('info-pemilik');
+        const infoWarna = document.getElementById('info-warna');
+        const inputPlatBaru = document.getElementById('input-plat-baru');
+
+        function cekPlat() {
+            const ketikan = inputPlat.value.toUpperCase().trim();
+
+            if (!ketikan) {
+                statusBadge.classList.add('hidden');
+                infoTerdaftar.classList.add('hidden');
+                inputPlatBaru.classList.add('hidden');
+                return;
+            }
+
+            // Cari plat yang cocok di master data Admin
+            const cocok = dataKendaraan.find(item => item.no_plat.toUpperCase().trim() === ketikan);
+
+            if (cocok) {
+                // Tampilkan status terdaftar
+                statusBadge.textContent = '✓ Kendaraan Terdaftar';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300';
+
+                infoPemilik.textContent = cocok.pemilik || '-';
+                infoWarna.textContent = cocok.warna || '-';
+                infoTerdaftar.classList.remove('hidden');
+                inputPlatBaru.classList.add('hidden');
+
+                // Otomatis pilih dropdown Jenis Kendaraan / Tarif sesuai data Admin
+                const jenisTarget = (cocok.jenis_kendaraan || '').toLowerCase().trim();
+                for (let option of selectTarif.options) {
+                    if (option.dataset.jenis === jenisTarget) {
+                        selectTarif.value = option.value;
+                        break;
+                    }
+                }
+            } else {
+                // Tampilkan status plat baru
+                statusBadge.textContent = '+ Plat Baru (Umum)';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300';
+
+                infoTerdaftar.classList.add('hidden');
+                inputPlatBaru.classList.remove('hidden');
+            }
+        }
+
+        inputPlat.addEventListener('input', cekPlat);
+        inputPlat.addEventListener('change', cekPlat);
+    });
+</script>
 @endsection
