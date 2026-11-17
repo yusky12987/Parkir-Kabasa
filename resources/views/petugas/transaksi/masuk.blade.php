@@ -3,50 +3,93 @@
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <!-- Panel Kiri: Form Input Kendaraan Masuk (7 Kolom) -->
+    <!-- Panel Kiri: Scanner RFID & Form Kendaraan Masuk (7 Kolom) -->
     <div class="lg:col-span-7 bg-white border border-slate-300 rounded shadow-sm h-fit">
         <div class="bg-slate-200 px-4 py-3 border-b border-slate-300 font-bold text-slate-700 flex justify-between items-center">
-            <span>Input Kendaraan Masuk</span>
+            <span>Input & Scan RFID Kendaraan Masuk</span>
             <span class="text-[11px] font-normal bg-slate-300/70 text-slate-700 px-2 py-0.5 rounded">
-                Shortcut: F1 / F2 Pilih Jenis • Enter Simpan
+                F1 / F2 Jenis • Enter Simpan
             </span>
         </div>
 
-        <div class="p-4">
+        <div class="p-4 space-y-4">
             @if($errors->any())
-                <div class="mb-4 bg-red-50 border border-red-300 text-red-700 px-3 py-2 rounded text-xs">
+                <div class="bg-red-50 border border-red-300 text-red-700 px-3 py-2 rounded text-xs">
                     {{ $errors->first() }}
                 </div>
             @endif
 
-            <div id="js-alert" class="hidden mb-4 bg-amber-50 border border-amber-300 text-amber-800 px-3 py-2 rounded text-xs">
+            <div id="js-alert" class="hidden bg-amber-50 border border-amber-300 text-amber-800 px-3 py-2 rounded text-xs">
                 Silakan pilih jenis kendaraan (Motor / Mobil) terlebih dahulu.
             </div>
 
+            <!-- KOTAK SCANNER RFID (KTS) -->
+            <div class="bg-slate-900 text-white rounded-lg p-3.5 border border-slate-700">
+                <div class="flex justify-between items-center mb-1.5">
+                    <label for="scanner_rfid" class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Tap Kartu RFID / KTS Di Sini
+                    </label>
+                    <span class="text-[10px] text-slate-400">Otomatis Daftar / Masuk</span>
+                </div>
+                <input type="text" id="scanner_rfid" autofocus autocomplete="off"
+                    placeholder="Tempelkan kartu KTS ke alat reader..."
+                    class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-slate-400 focus:outline-none focus:border-emerald-400">
+                <div id="rfid-status" class="mt-1.5 text-[11px] text-slate-300">
+                    Siap memindai. Kartu terdaftar otomatis masuk; kartu baru otomatis buka form daftar.
+                </div>
+            </div>
+
+            <!-- FORM UTAMA KENDARAAN MASUK -->
             <form id="form-masuk" action="{{ route('petugas.transaksi.masuk.store') }}" method="POST" class="space-y-4">
                 @csrf
 
-                <!-- Input Nomor Plat dengan Custom Smart Dropdown -->
+                <!-- Banner Registrasi Kartu Baru (Muncul otomatis jika tap KTS yang belum terdaftar) -->
+                <div id="box-daftar-rfid" class="hidden bg-amber-50 border-2 border-amber-400 rounded-lg p-3.5 space-y-3">
+                    <div class="flex justify-between items-center border-b border-amber-200 pb-2">
+                        <div>
+                            <div class="text-xs font-bold text-amber-900 uppercase">Kartu RFID Baru Terdeteksi!</div>
+                            <div class="text-[11px] text-amber-800">Lengkapi data di bawah untuk mendaftarkan kartu & langsung masuk.</div>
+                        </div>
+                        <button type="button" onclick="batalDaftarRfid()" class="text-xs text-amber-800 hover:text-amber-950 font-semibold underline">
+                            Batal
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-amber-900 uppercase mb-1">UID Kartu RFID</label>
+                            <input type="text" id="rfid_uid" name="rfid_uid" value="{{ old('rfid_uid') }}" readonly
+                                class="w-full bg-amber-100/70 border border-amber-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-amber-950">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-amber-900 uppercase mb-1">Nama Pemilik / Siswa</label>
+                            <input type="text" id="pemilik" name="pemilik" value="{{ old('pemilik') }}"
+                                placeholder="Contoh: Ahmad (XII RPL)"
+                                class="w-full bg-white border border-amber-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-amber-600">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Nomor Plat -->
                 <div class="relative">
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">
                         Nomor Plat Kendaraan
                     </label>
                     <input type="text" id="no_plat" name="no_plat" value="{{ old('no_plat') }}"
-                        autocomplete="off" autofocus required
+                        autocomplete="off" required
                         placeholder="Ketik plat nomor (contoh: B 1234 ABC)..."
                         class="w-full border border-slate-300 rounded px-3 py-2.5 text-base font-bold text-slate-800 uppercase placeholder:normal-case placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-slate-700">
 
-                    <!-- Custom Dropdown Saran (Muncul hanya saat mengetik) -->
                     <div id="custom-dropdown" class="hidden absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto divide-y divide-slate-100">
                     </div>
 
-                    <!-- Indikator Status Pengenalan Otomatis -->
                     <div id="info-kendaraan" class="mt-1.5 text-xs text-slate-500">
-                        Ketik plat nomor—kendaraan lama & member otomatis mengisi jenis serta area.
+                        Atau ketik plat nomor manual jika pengunjung umum tanpa kartu.
                     </div>
                 </div>
 
-                <!-- Pilihan Cepat Jenis Kendaraan (1-Klik / Otomatis Terisi) -->
+                <!-- Pilihan Cepat Jenis Kendaraan -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1.5">
                         Jenis Kendaraan & Tarif
@@ -167,7 +210,14 @@
 
 <script>
     const databasePlat  = @json($databasePlat);
+    const rfidMap       = @json($rfidMap);
     const listKendaraan = Object.values(databasePlat);
+
+    const scannerRfid   = document.getElementById('scanner_rfid');
+    const rfidStatus    = document.getElementById('rfid-status');
+    const boxDaftarRfid = document.getElementById('box-daftar-rfid');
+    const inputRfidUid  = document.getElementById('rfid_uid');
+    const inputPemilik  = document.getElementById('pemilik');
 
     const formMasuk   = document.getElementById('form-masuk');
     const inputPlat   = document.getElementById('no_plat');
@@ -182,8 +232,53 @@
     let hasilFilter = [];
     let indexAktif  = -1;
 
+    // 1. LOGIKA PEMBACAAN ALAT RFID (USB Reader mengirim UID + Enter)
+    scannerRfid.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Jangan submit form kosong dulu
+            const uid = scannerRfid.value.trim();
+            if (!uid) return;
+
+            scannerRfid.value = ''; // Kosongkan kembali untuk scan berikutnya
+            prosesScanRfid(uid);
+        }
+    });
+
+    function prosesScanRfid(uid) {
+        const terdaftar = rfidMap[uid];
+
+        if (terdaftar) {
+            // SKENARIO A: Kartu RFID sudah terdaftar -> Isi otomatis & langsung masuk!
+            batalDaftarRfid();
+            terapkanDataKendaraan(terdaftar);
+            rfidStatus.innerHTML = `<span class="text-emerald-400 font-semibold">✓ Kartu Dikenali: ${terdaftar.pemilik} (${terdaftar.no_plat}) — Memproses masuk otomatis...</span>`;
+
+            if (inputPlat.value && inputTarif.value && selectArea.value) {
+                setTimeout(() => formMasuk.submit(), 350);
+            }
+        } else {
+            // SKENARIO B: Kartu RFID Baru (misal KTS siswa baru) -> Buka form registrasi otomatis
+            inputRfidUid.value = uid;
+            boxDaftarRfid.classList.remove('hidden');
+            btnSubmit.textContent = 'Daftarkan Kartu RFID & Catat Masuk';
+            btnSubmit.className = 'w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded text-sm transition';
+
+            rfidStatus.innerHTML = `<span class="text-amber-300 font-semibold">! Kartu Baru (UID: ${uid}) — Silakan isi Nama & No. Plat di bawah.</span>`;
+            inputPemilik.focus();
+        }
+    }
+
+    function batalDaftarRfid() {
+        inputRfidUid.value = '';
+        inputPemilik.value = '';
+        boxDaftarRfid.classList.add('hidden');
+        btnSubmit.textContent = 'Simpan & Cetak Tiket Masuk';
+        btnSubmit.className = 'w-full bg-slate-800 hover:bg-slate-900 focus:ring-2 focus:ring-slate-400 text-white font-semibold py-2.5 rounded text-sm transition';
+        rfidStatus.textContent = 'Siap memindai. Kartu terdaftar otomatis masuk; kartu baru otomatis buka form daftar.';
+    }
+
+    // 2. LOGIKA PILIH AREA & TARIF OTOMATIS
     function pilihAreaTersedia(preferIdArea, namaJenis = '') {
-        // 1. Jika ada riwayat area sebelumnya dan belum penuh, pakai area tersebut
         if (preferIdArea) {
             const opsiPrefer = selectArea.querySelector(`option[value="${preferIdArea}"]`);
             if (opsiPrefer && !opsiPrefer.disabled) {
@@ -191,7 +286,6 @@
                 return;
             }
         }
-        // 2. Cari area yang namanya cocok dengan jenis kendaraan (misal "Area Motor" / "Area Mobil")
         const jenisLower = namaJenis.toLowerCase();
         if (jenisLower) {
             const opsiCocokJenis = Array.from(selectArea.options).find(opt =>
@@ -202,7 +296,6 @@
                 return;
             }
         }
-        // 3. Fallback ke area pertama yang masih tersedia
         const opsiKosong = Array.from(selectArea.options).find(opt => opt.value !== '' && !opt.disabled);
         if (opsiKosong) {
             selectArea.value = opsiKosong.value;
@@ -254,6 +347,7 @@
         }
     }
 
+    // 3. CUSTOM DROPDOWN PENCARIAN PLAT MANUAL
     function tutupDropdown() {
         dropdown.classList.add('hidden');
         dropdown.innerHTML = '';
@@ -267,7 +361,7 @@
 
         if (cleanQuery.length === 0) {
             tutupDropdown();
-            infoBox.innerHTML = `Ketik plat nomor—kendaraan lama & member otomatis mengisi jenis serta area.`;
+            infoBox.innerHTML = `Atau ketik plat nomor manual jika pengunjung umum tanpa kartu.`;
             return;
         }
 
@@ -340,7 +434,6 @@
         }
     });
 
-    // Shortcut F1, F2, dst. untuk memilih jenis kendaraan dengan cepat
     document.addEventListener('keydown', function (e) {
         if (e.key === 'F1' || e.key === 'F2' || e.key === 'F3' || e.key === 'F4') {
             const idx = parseInt(e.key.replace('F', '')) - 1;
@@ -364,7 +457,9 @@
         }
     });
 
-    // Pulihkan pilihan jika terjadi validasi ulang (old input)
+    if (inputRfidUid.value) {
+        boxDaftarRfid.classList.remove('hidden');
+    }
     if (inputTarif.value) {
         pilihTarif(inputTarif.value, false);
     }

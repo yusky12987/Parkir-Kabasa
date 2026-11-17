@@ -11,11 +11,11 @@ use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class TransaksiController extends Controller
 {
-    
-// 1. Tampilan Input Kendaraan Masuk (Dengan Smart Auto-Fill Riwayat & Member)
+    // 1. Tampilan Input Kendaraan Masuk (Scan RFID + Smart Auto-Fill Riwayat & Member)
     public function masuk()
     {
         $tarif = Tarif::all();
@@ -43,8 +43,11 @@ class TransaksiController extends Controller
             ];
         }
 
-        // Gabungkan dengan data Member Langganan dari tb_kendaraan
+        // Gabungkan dengan data Member Langganan dari tb_kendaraan & petakan UID RFID
         $members = Kendaraan::orderBy('no_plat', 'asc')->get();
+        $rfidMap = [];
+        $hasRfidColumn = Schema::hasColumn('tb_kendaraan', 'rfid_uid');
+
         foreach ($members as $m) {
             $plat = strtoupper(trim($m->no_plat));
             $tarifId = $m->id_tarif ?? null;
@@ -83,18 +86,24 @@ class TransaksiController extends Controller
                     'pemilik'    => $m->pemilik ?? 'Member',
                 ];
             }
+
+            if ($hasRfidColumn && !empty($m->rfid_uid)) {
+                $rfidMap[trim($m->rfid_uid)] = $databasePlat[$plat];
+            }
         }
 
-        return view('petugas.transaksi.masuk', compact('tarif', 'area', 'databasePlat'));
+        return view('petugas.transaksi.masuk', compact('tarif', 'area', 'databasePlat', 'rfidMap'));
     }
 
-    // Proses Simpan Kendaraan Masuk
+    // Proses Simpan Kendaraan Masuk (+ Registrasi Otomatis jika Kartu RFID Baru)
     public function storeMasuk(Request $request)
     {
         $request->validate([
             'no_plat'  => 'required|string|max:15',
             'id_tarif' => 'required|exists:tb_tarif,id_tarif',
             'id_area'  => 'required|exists:tb_area_parkir,id_area',
+            'rfid_uid' => 'nullable|string|max:50',
+            'pemilik'  => 'nullable|string|max:100',
         ]);
 
         $noPlat = strtoupper(trim($request->no_plat));
@@ -115,6 +124,33 @@ class TransaksiController extends Controller
             return back()->withErrors(['id_area' => 'Area parkir ini sudah penuh!'])->withInput();
         }
 
+        // Registrasi otomatis kartu RFID baru ke tb_kendaraan
+        $pesanTambahan = '';
+        if ($request->filled('rfid_uid') && Schema::hasColumn('tb_kendaraan', 'rfid_uid')) {
+            $uid = trim($request->rfid_uid);
+            $sudahAdaRfid = Kendaraan::where('rfid_uid', $uid)->first();
+
+            if (!$sudahAdaRfid) {
+                $tarifObj = Tarif::find($request->id_tarif);
+                $dataMember = [
+                    'rfid_uid' => $uid,
+                    'no_plat'  => $noPlat,
+                    'pemilik'  => $request->filled('pemilik') ? trim($request->pemilik) : 'Member KTS',
+                ];
+
+                if (Schema::hasColumn('tb_kendaraan', 'jenis_kendaraan')) {
+                    $dataMember['jenis_kendaraan'] = $tarifObj ? $tarifObj->jenis_kendaraan : 'Motor';
+                }
+                if (Schema::hasColumn('tb_kendaraan', 'id_tarif')) {
+                    $dataMember['id_tarif'] = $request->id_tarif;
+                }
+
+                Kendaraan::create($dataMember);
+                LogAktivitas::catat(Auth::user()->id_user, "Registrasi Member RFID Baru: {$noPlat} (UID: {$uid})");
+                $pesanTambahan = ' & kartu RFID baru berhasil didaftarkan!';
+            }
+        }
+
         $transaksi = Transaksi::create([
             'no_plat'     => $noPlat,
             'waktu_masuk' => Carbon::now(),
@@ -128,10 +164,10 @@ class TransaksiController extends Controller
         LogAktivitas::catat(Auth::user()->id_user, "Kendaraan Masuk: " . $transaksi->no_plat);
 
         return redirect()->route('petugas.transaksi.cetak', $transaksi->id_parkir)
-                         ->with('success', 'Transaksi masuk berhasil dicatat.');
+                         ->with('success', 'Transaksi masuk berhasil dicatat' . $pesanTambahan);
     }
 
-    // 2. Tampilan Transaksi Keluar & Kasir Bayar
+    // 2. Tampilan Transaksi Keluar & Kasir Bayar (Mendukung Pencarian Plat & Tap RFID)
     public function keluar(Request $request)
     {
         $transaksi = null;
@@ -141,8 +177,19 @@ class TransaksiController extends Controller
             ->get();
 
         if ($request->has('no_plat') && $request->no_plat != '') {
+            $inputCari = trim($request->no_plat);
+            $platDicari = strtoupper($inputCari);
+
+            // Jika petugas/siswa menempelkan kartu RFID di kolom pencarian keluar
+            if (Schema::hasColumn('tb_kendaraan', 'rfid_uid')) {
+                $memberRfid = Kendaraan::where('rfid_uid', $inputCari)->first();
+                if ($memberRfid) {
+                    $platDicari = strtoupper(trim($memberRfid->no_plat));
+                }
+            }
+
             $transaksi = Transaksi::with(['tarif', 'area'])
-                ->where('no_plat', strtoupper(trim($request->no_plat)))
+                ->where('no_plat', $platDicari)
                 ->where('status', 'Masuk')
                 ->latest('id_parkir')
                 ->first();
